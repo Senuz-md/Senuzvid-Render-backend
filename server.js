@@ -6,56 +6,72 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// සර්වර් එක Live ද කියලා බලන්න
-app.get("/", (req, res) => res.send("SenuzVid Engine v30 - High Performance Active 🚀"));
+app.get("/", (req, res) => res.send("SenuzVid Premium Engine v35 - Active 🚀"));
 
+// Video Details API
+app.get("/api/details", async (req, res) => {
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ error: "URL missing" });
+    try {
+        if (url.includes("tiktok.com")) {
+            const r = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
+            return res.json({ 
+                platform: "TikTok", 
+                title: r.data.data.title || "TikTok Video", 
+                thumbnail: r.data.data.cover 
+            });
+        }
+        // General Details
+        res.json({ 
+            platform: "Social Media", 
+            title: "Video Found", 
+            thumbnail: "https://files.catbox.moe/1dlcmm.jpg" 
+        });
+    } catch (e) {
+        res.status(500).json({ error: "Details fetch failed" });
+    }
+});
+
+// Main Download API
 app.get("/api/download", async (req, res) => {
     let { url, quality } = req.query;
     if (!url) return res.status(400).json({ error: "URL missing" });
 
     try {
-        // Facebook/YouTube ලින්ක් පිරිසිදු කිරීම
-        url = url.split('?')[0];
+        const cleanUrl = url.split('?')[0];
 
-        // TikTok සඳහා (Very Stable)
-        if (url.includes("tiktok.com") || url.includes("vm.tiktok")) {
-            const r = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
-            if (r.data.data) {
-                const d = r.data.data;
-                return res.redirect(quality === "audio" ? d.music : (d.hdplay || d.play));
-            }
+        // 1. TikTok Logic
+        if (cleanUrl.includes("tiktok.com")) {
+            const r = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(cleanUrl)}`);
+            const d = r.data.data;
+            if (d) return res.redirect(quality === "audio" ? d.music : (d.hdplay || d.play));
         }
 
-        // අනෙකුත් සියලුම වීඩියෝ සඳහා (Using Cobalt Fixed API)
-        // අපි මෙතනදී කෙලින්ම Cobalt වලට Request එක යවනවා Headers සමඟ
-        const response = await axios.post('https://api.cobalt.tools/', {
-            url: url,
+        // 2. Multi-Platform Logic (FB, YT, IG) - Using Cobalt
+        const cobaltRes = await axios.post('https://api.cobalt.tools/', {
+            url: cleanUrl,
             videoQuality: quality || "720",
             downloadMode: quality === "audio" ? "audio" : "video",
             youtubeVideoCodec: "h264"
         }, {
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            timeout: 20000 // $85 සර්වර් එකක් නිසා තත්පර 20ක් ඉන්නවා
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            timeout: 20000 
         });
 
-        if (response.data && response.data.url) {
-            return res.redirect(response.data.url);
-        } else {
-            throw new Error("No URL returned");
+        if (cobaltRes.data && cobaltRes.data.url) {
+            return res.redirect(cobaltRes.data.url);
         }
 
+        throw new Error("API could not generate link");
+
     } catch (e) {
-        console.error("Error Detail:", e.message);
-        // මෙතනදී Redirect එකක් වෙනුවට JSON Error එකක් යවනවා Frontend එකට හඳුනාගන්න
+        console.error("DL Error:", e.message);
         res.status(500).json({ 
-            error: "සර්වර් එක සමඟ සම්බන්ධ විය නොහැක.", 
-            details: "කරුණාකර ලින්ක් එක පරීක්ෂා කර නැවත උත්සාහ කරන්න." 
+            error: "බාගත කිරීම අසාර්ථකයි.", 
+            details: "සර්වර් එකේ ගැටලුවක් පවතී. පසුව උත්සාහ කරන්න." 
         });
     }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Engine running on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Premium Engine on port ${PORT}`));
