@@ -6,15 +6,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get("/", (req, res) => res.send("SenuzVid Engine v2.0 - Online! 🚀"));
+app.get("/", (req, res) => res.send("SenuzVid Engine v3.0 - Stable 🚀"));
 
 /* ================= DOWNLOAD LOGIC ================= */
 app.get("/api/download", async (req, res) => {
-    const { url, quality } = req.query;
+    const { url, quality } = req.query; // quality examples: 1080, 720, 480, audio
     if (!url) return res.status(400).json({ error: "URL missing" });
 
     try {
-        // 1. TikTok (TikWM)
+        // 1. TIKTOK LOGIC (TikWM)
         if (url.includes("tiktok.com") || url.includes("vm.tiktok")) {
             const r = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
             const d = r.data.data;
@@ -22,32 +22,43 @@ app.get("/api/download", async (req, res) => {
             return res.redirect(dlLink);
         }
 
-        // 2. Cobalt API (Updated Logic to avoid 400 error)
-        const cobaltConfig = {
+        // 2. UPDATED COBALT LOGIC (Fixing 400 Error)
+        // Cobalt දැන් 'quality' කියන නම සහ අලුත් format එකක් පාවිච්චි කරයි
+        const cobaltData = {
             url: url,
             videoQuality: quality === "audio" ? "720" : (quality || "720"),
             downloadMode: quality === "audio" ? "audio" : "video",
-            youtubeVideoCodec: "h264", // stable for most browsers
-            filenameStyle: "pretty"
+            youtubeVideoCodec: "h264",
+            filenameStyle: "pretty",
+            isAudioOnly: quality === "audio"
         };
 
-        const cobaltResponse = await axios.post('https://api.cobalt.tools/api/json', cobaltConfig, {
+        const cobaltResponse = await axios.post('https://api.cobalt.tools/api/json', cobaltData, {
             headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
         });
 
+        // Cobalt වෙලාවකට direct link එකක් වෙනුවට stream link එකක් දෙයි
         if (cobaltResponse.data && cobaltResponse.data.url) {
             return res.redirect(cobaltResponse.data.url);
+        } else if (cobaltResponse.data && cobaltResponse.data.text) {
+            // සමහරවිට text එකක් විදියට error එකක් එවන්න පුළුවන්
+            throw new Error(cobaltResponse.data.text);
         } else {
             throw new Error("Invalid response from engine.");
         }
 
     } catch (e) {
-        console.error("Engine Error:", e.response ? e.response.data : e.message);
-        res.status(500).json({ error: "බාගත කිරීමේ දෝෂයකි.", msg: "Link invalid or restricted." });
+        // Error එක හරියටම බලාගන්න log එකක් දාමු
+        console.error("Engine Error Details:", e.response ? e.response.data : e.message);
+        
+        res.status(500).json({ 
+            error: "බාගත කිරීම අසාර්ථකයි.", 
+            details: e.response ? e.response.data.text : e.message 
+        });
     }
 });
 
@@ -68,6 +79,7 @@ app.get("/api/details", async (req, res) => {
             });
         }
         
+        // YouTube, FB, IG සඳහා පොදු response එක
         return res.json({
             platform: "Social Media",
             title: "Ready to Download",
