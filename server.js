@@ -1,68 +1,53 @@
-// server.js — SenuzVid Multi-Downloader (Render Edition)
-// පාවිච්චි කර ඇති Libraries: express, cors, axios
-
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
 
 const app = express();
-
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// සර්වර් එක වැඩ දැයි පරීක්ෂා කිරීමට (Health Check)
-app.get("/", (req, res) => {
-    res.status(200).send("🚀 SenuzVid Engine is Online & Stable!");
-});
+app.get("/", (req, res) => res.send("SenuzVid Engine v2.0 - Online! 🚀"));
 
 /* ================= DOWNLOAD LOGIC ================= */
 app.get("/api/download", async (req, res) => {
     const { url, quality } = req.query;
-
-    if (!url) {
-        return res.status(400).json({ error: "URL එක ඇතුළත් කර නැත!" });
-    }
+    if (!url) return res.status(400).json({ error: "URL missing" });
 
     try {
-        // 1. TIKTOK LOGIC (TikWM API)
+        // 1. TikTok (TikWM)
         if (url.includes("tiktok.com") || url.includes("vm.tiktok")) {
-            const response = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
-            const data = response.data.data;
-            
-            if (!data) throw new Error("TikTok data not found");
-
-            // Quality එක අනුව ලින්ක් එක තෝරා ගැනීම
-            const dlLink = (quality === "audio") ? data.music : (data.hdplay || data.play);
+            const r = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
+            const d = r.data.data;
+            const dlLink = (quality === "audio") ? d.music : (d.hdplay || d.play);
             return res.redirect(dlLink);
         }
 
-        // 2. FB, YT, IG, TWITTER LOGIC (Cobalt Engine)
-        const cobaltResponse = await axios.post('https://api.cobalt.tools/api/json', {
+        // 2. Cobalt API (Updated Logic to avoid 400 error)
+        const cobaltConfig = {
             url: url,
-            videoQuality: (quality === "audio") ? "720" : (quality || "720"),
-            downloadMode: (quality === "audio") ? "audio" : "video",
+            videoQuality: quality === "audio" ? "720" : (quality || "720"),
+            downloadMode: quality === "audio" ? "audio" : "video",
+            youtubeVideoCodec: "h264", // stable for most browsers
             filenameStyle: "pretty"
-        }, {
+        };
+
+        const cobaltResponse = await axios.post('https://api.cobalt.tools/api/json', cobaltConfig, {
             headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'User-Agent': 'Mozilla/5.0'
             }
         });
 
         if (cobaltResponse.data && cobaltResponse.data.url) {
             return res.redirect(cobaltResponse.data.url);
         } else {
-            throw new Error("Could not fetch link from Cobalt Engine.");
+            throw new Error("Invalid response from engine.");
         }
 
-    } catch (error) {
-        console.error("Download Error:", error.message);
-        res.status(500).json({ 
-            error: "බාගත කිරීම අසාර්ථකයි.", 
-            details: error.message 
-        });
+    } catch (e) {
+        console.error("Engine Error:", e.response ? e.response.data : e.message);
+        res.status(500).json({ error: "බාගත කිරීමේ දෝෂයකි.", msg: "Link invalid or restricted." });
     }
 });
 
@@ -72,7 +57,6 @@ app.get("/api/details", async (req, res) => {
     if (!url) return res.status(400).json({ error: "URL missing" });
 
     try {
-        // TikTok සඳහා විස්තර ලබා ගැනීම
         if (url.includes("tiktok.com") || url.includes("vm.tiktok")) {
             const r = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
             const d = r.data.data;
@@ -83,26 +67,17 @@ app.get("/api/details", async (req, res) => {
                 qualities: ["1080", "720", "audio"]
             });
         }
-
-        // YouTube, FB සහ අනෙකුත් ඒවා සඳහා සාමාන්‍ය විස්තර
-        let platform = "Social Media";
-        if (url.includes("youtube.com") || url.includes("youtu.be")) platform = "YouTube";
-        if (url.includes("facebook.com") || url.includes("fb.watch")) platform = "Facebook";
-
+        
         return res.json({
-            platform: platform,
-            title: `${platform} Video Found`,
-            thumbnail: "https://files.catbox.moe/1dlcmm.jpg", // Default image
+            platform: "Social Media",
+            title: "Ready to Download",
+            thumbnail: "https://files.catbox.moe/1dlcmm.jpg",
             qualities: ["1080", "720", "480", "audio"]
         });
-
     } catch (e) {
-        res.status(500).json({ error: "Details fetch failed" });
+        res.status(500).json({ error: "Error fetching details" });
     }
 });
 
-// Render Port Configuration
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ SenuzVid is running on port ${PORT}`);
-});
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT}`));
