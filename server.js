@@ -1,4 +1,4 @@
-// server.js — SenuzVid Ultra Stable Edition (No More Heroku Errors)
+// server.js — SenuzVid Render Optimized Edition
 
 const express = require("express");
 const cors = require("cors");
@@ -8,44 +8,56 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// සර්වර් එකේ සජීවී බව පරීක්ෂා කිරීමට
-app.get("/", (req, res) => res.send("SenuzVid Engine is Online & Stable! 🚀"));
+// සර්වර් එක වැඩද බලන්න
+app.get("/", (req, res) => {
+    res.status(200).send("SenuzVid Engine is Live on Render! 🚀");
+});
 
-/* ================= DOWNLOAD LOGIC (COBALT & TIKWM) ================= */
+/* ================= DOWNLOAD LOGIC ================= */
 app.get("/api/download", async (req, res) => {
     const { url, quality } = req.query;
-    if (!url) return res.status(400).send("URL missing");
+    
+    if (!url) return res.status(400).json({ error: "කරුණාකර URL එකක් ලබා දෙන්න." });
 
     try {
-        // 1. TIKTOK නම් TikWM භාවිතා කරමු (එය ඉතා වේගවත් නිසා)
+        // 1. TikTok Logic (TikWM API එක ඉතා ස්ථාවරයි)
         if (url.includes("tiktok.com") || url.includes("vm.tiktok")) {
-            const r = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
-            const d = r.data.data;
-            const dlLink = (quality === "audio") ? d.music : (d.hdplay || d.play);
+            const response = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
+            const data = response.data.data;
+            if (!data) throw new Error("TikTok data not found");
+            
+            const dlLink = (quality === "audio") ? data.music : (data.hdplay || data.play);
             return res.redirect(dlLink);
         }
 
-        // 2. YOUTUBE, FB, IG සඳහා COBALT ENGINE එක භාවිතා කරමු (Stable & No Blocks)
+        // 2. YouTube, FB, IG, Twitter (Cobalt Engine)
+        // Render වලදී 'api.cobalt.tools' සමහරවිට busy වෙන්න පුළුවන්, 
+        // ඒ නිසා මේ headers අනිවාර්යයි.
         const cobaltResponse = await axios.post('https://api.cobalt.tools/api/json', {
             url: url,
-            videoQuality: quality === "audio" ? "720" : quality, // Quality Mapping
+            videoQuality: quality === "audio" ? "720" : quality, 
             downloadMode: quality === "audio" ? "audio" : "video",
+            filenameStyle: "pretty"
         }, {
             headers: {
                 'Accept': 'application/json',
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
             }
         });
 
         if (cobaltResponse.data && cobaltResponse.data.url) {
             return res.redirect(cobaltResponse.data.url);
         } else {
-            throw new Error("Could not fetch link from engine.");
+            throw new Error("Engine process failed");
         }
 
     } catch (e) {
-        console.error("Engine Error:", e.message);
-        res.status(500).send("Application Error: සර්වර් එකේ තදබදයක්. පසුව උත්සාහ කරන්න.");
+        console.error("Error Detail:", e.message);
+        res.status(500).json({ 
+            error: "සර්වර් එකේ බාධාවක්.", 
+            msg: "සමහරවිට මෙම වීඩියෝව ලබා ගැනීමට Engine එකට අවසර නැත. නැවත උත්සාහ කරන්න." 
+        });
     }
 });
 
@@ -55,33 +67,31 @@ app.get("/api/details", async (req, res) => {
     if (!url) return res.status(400).json({ error: "URL missing" });
 
     try {
-        // TikTok Details
         if (url.includes("tiktok.com")) {
             const r = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
             const d = r.data.data;
             return res.json({
                 platform: "TikTok",
                 title: d.title || "TikTok Video",
-                author: d.author.nickname,
                 thumbnail: d.cover,
-                qualities: ["1080p", "720p", "audio"]
+                qualities: ["1080", "720", "audio"]
             });
         }
 
-        // YouTube/Other Details using Cobalt Meta
+        // Generic details for YT/FB
         return res.json({
-            platform: "Universal",
+            platform: "Social Media",
             title: "Ready to Download",
-            author: "SenuzVid",
             thumbnail: "https://files.catbox.moe/1dlcmm.jpg",
-            qualities: ["1080p", "720p", "480p", "audio"]
+            qualities: ["1080", "720", "480", "audio"]
         });
-
     } catch (e) {
-        res.status(500).json({ error: "Details not found" });
+        res.status(500).json({ error: "Details fetch failed" });
     }
 });
 
-// Port Handling for Heroku
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Engine running on port ${PORT}`));
+// Render වලට ගැලපෙන Port එක
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Engine running at port ${PORT}`);
+});
