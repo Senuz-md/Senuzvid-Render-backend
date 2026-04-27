@@ -6,15 +6,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get("/", (req, res) => res.send("SenuzVid Engine v3.0 - Stable 🚀"));
+app.get("/", (req, res) => res.send("SenuzVid Engine v10 - Online! 🚀"));
 
-/* ================= DOWNLOAD LOGIC ================= */
+/* ================= DOWNLOAD LOGIC (Cobalt v10) ================= */
 app.get("/api/download", async (req, res) => {
-    const { url, quality } = req.query; // quality examples: 1080, 720, 480, audio
+    const { url, quality } = req.query; 
     if (!url) return res.status(400).json({ error: "URL missing" });
 
     try {
-        // 1. TIKTOK LOGIC (TikWM)
+        // 1. TIKTOK LOGIC (TikWM) - මෙය පෙර පරිදිම වැඩ කරයි
         if (url.includes("tiktok.com") || url.includes("vm.tiktok")) {
             const r = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
             const d = r.data.data;
@@ -22,42 +22,37 @@ app.get("/api/download", async (req, res) => {
             return res.redirect(dlLink);
         }
 
-        // 2. UPDATED COBALT LOGIC (Fixing 400 Error)
-        // Cobalt දැන් 'quality' කියන නම සහ අලුත් format එකක් පාවිච්චි කරයි
-        const cobaltData = {
+        // 2. COBALT V10 LOGIC (YouTube, FB, IG)
+        // v10 එකේදී API එකේ ලින්ක් එක 'https://api.cobalt.tools/' (අන්තිමට json නැත)
+        const cobaltConfig = {
             url: url,
             videoQuality: quality === "audio" ? "720" : (quality || "720"),
             downloadMode: quality === "audio" ? "audio" : "video",
             youtubeVideoCodec: "h264",
-            filenameStyle: "pretty",
-            isAudioOnly: quality === "audio"
+            filenameStyle: "pretty"
         };
 
-        const cobaltResponse = await axios.post('https://api.cobalt.tools/api/json', cobaltData, {
+        const cobaltResponse = await axios.post('https://api.cobalt.tools/', cobaltConfig, {
             headers: {
                 'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'Content-Type': 'application/json'
             }
         });
 
-        // Cobalt වෙලාවකට direct link එකක් වෙනුවට stream link එකක් දෙයි
+        // v10 එකේදී response එක එන්නේ 'url' හෝ 'stream' විදිහටයි
         if (cobaltResponse.data && cobaltResponse.data.url) {
             return res.redirect(cobaltResponse.data.url);
-        } else if (cobaltResponse.data && cobaltResponse.data.text) {
-            // සමහරවිට text එකක් විදියට error එකක් එවන්න පුළුවන්
-            throw new Error(cobaltResponse.data.text);
+        } else if (cobaltResponse.data && cobaltResponse.data.status === "redirect") {
+            return res.redirect(cobaltResponse.data.url);
         } else {
-            throw new Error("Invalid response from engine.");
+            throw new Error(cobaltResponse.data.text || "Engine Error");
         }
 
     } catch (e) {
-        // Error එක හරියටම බලාගන්න log එකක් දාමු
-        console.error("Engine Error Details:", e.response ? e.response.data : e.message);
-        
+        console.error("Engine Error:", e.response ? e.response.data : e.message);
         res.status(500).json({ 
             error: "බාගත කිරීම අසාර්ථකයි.", 
-            details: e.response ? e.response.data.text : e.message 
+            details: "API එකේ තදබදයක් හෝ ලින්ක් එකේ දෝෂයකි. පසුව උත්සාහ කරන්න." 
         });
     }
 });
@@ -79,7 +74,6 @@ app.get("/api/details", async (req, res) => {
             });
         }
         
-        // YouTube, FB, IG සඳහා පොදු response එක
         return res.json({
             platform: "Social Media",
             title: "Ready to Download",
@@ -92,4 +86,4 @@ app.get("/api/details", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 v10 Server running on port ${PORT}`));
