@@ -6,15 +6,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get("/", (req, res) => res.send("SenuzVid Engine v10 - Online! 🚀"));
+app.get("/", (req, res) => res.send("SenuzVid Engine v10.0 - Active 🚀"));
 
-/* ================= DOWNLOAD LOGIC (Cobalt v10) ================= */
+/* ================= DOWNLOAD LOGIC ================= */
 app.get("/api/download", async (req, res) => {
-    const { url, quality } = req.query; 
+    const { url, quality } = req.query;
     if (!url) return res.status(400).json({ error: "URL missing" });
 
     try {
-        // 1. TIKTOK LOGIC (TikWM) - මෙය පෙර පරිදිම වැඩ කරයි
+        // 1. TIKTOK (TikWM)
         if (url.includes("tiktok.com") || url.includes("vm.tiktok")) {
             const r = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
             const d = r.data.data;
@@ -22,14 +22,13 @@ app.get("/api/download", async (req, res) => {
             return res.redirect(dlLink);
         }
 
-        // 2. COBALT V10 LOGIC (YouTube, FB, IG)
-        // v10 එකේදී API එකේ ලින්ක් එක 'https://api.cobalt.tools/' (අන්තිමට json නැත)
+        // 2. COBALT V10 (YouTube, FB, IG)
+        // වගබලා ගන්න: URL එක 'https://api.cobalt.tools/' විය යුතුයි (අගට json නැත)
         const cobaltConfig = {
             url: url,
             videoQuality: quality === "audio" ? "720" : (quality || "720"),
             downloadMode: quality === "audio" ? "audio" : "video",
-            youtubeVideoCodec: "h264",
-            filenameStyle: "pretty"
+            youtubeVideoCodec: "h264"
         };
 
         const cobaltResponse = await axios.post('https://api.cobalt.tools/', cobaltConfig, {
@@ -39,20 +38,21 @@ app.get("/api/download", async (req, res) => {
             }
         });
 
-        // v10 එකේදී response එක එන්නේ 'url' හෝ 'stream' විදිහටයි
+        // Response එකේ 'url' තිබේදැයි බලන්න
         if (cobaltResponse.data && cobaltResponse.data.url) {
             return res.redirect(cobaltResponse.data.url);
-        } else if (cobaltResponse.data && cobaltResponse.data.status === "redirect") {
-            return res.redirect(cobaltResponse.data.url);
         } else {
-            throw new Error(cobaltResponse.data.text || "Engine Error");
+            // වෙනත් විදියක error එකක් ආවොත් ඒක පෙන්වන්න
+            throw new Error(cobaltResponse.data.text || "Engine response error");
         }
 
     } catch (e) {
-        console.error("Engine Error:", e.response ? e.response.data : e.message);
+        // Log the actual error to Render dashboard
+        console.error("V10 Error:", e.response ? e.response.data : e.message);
+        
         res.status(500).json({ 
             error: "බාගත කිරීම අසාර්ථකයි.", 
-            details: "API එකේ තදබදයක් හෝ ලින්ක් එකේ දෝෂයකි. පසුව උත්සාහ කරන්න." 
+            details: "API එකේ පරණ සංස්කරණය ඉවත් කර අලුත් එකට මාරු වන්න." 
         });
     }
 });
