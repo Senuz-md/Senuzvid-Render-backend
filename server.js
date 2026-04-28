@@ -6,72 +6,45 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get("/", (req, res) => res.send("SenuzVid Premium Engine v35 - Active 🚀"));
+app.get("/", (req, res) => res.send("SenuzVid Bypass Engine v40 🚀"));
 
-// Video Details API
-app.get("/api/details", async (req, res) => {
-    const { url } = req.query;
-    if (!url) return res.status(400).json({ error: "URL missing" });
+app.get("/api/download", async (req, res) => {
+    const { url, quality } = req.query;
+    if (!url) return res.status(400).send("URL missing");
+
+    const cleanUrl = url.split('?')[0];
+
+    // ක්‍රමය 1: FB/Instagram සඳහා (SnapSave API - Very Strong)
     try {
-        if (url.includes("tiktok.com")) {
-            const r = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
-            return res.json({ 
-                platform: "TikTok", 
-                title: r.data.data.title || "TikTok Video", 
-                thumbnail: r.data.data.cover 
-            });
+        const res1 = await axios.get(`https://api.vkrdown.com/server/fb.php?url=${encodeURIComponent(cleanUrl)}`);
+        if (res1.data && res1.data.data) {
+            const link = quality === "audio" ? res1.data.data.audio : (res1.data.data.hd || res1.data.data.sd);
+            if (link) return res.redirect(link);
         }
-        // General Details
-        res.json({ 
-            platform: "Social Media", 
-            title: "Video Found", 
-            thumbnail: "https://files.catbox.moe/1dlcmm.jpg" 
-        });
-    } catch (e) {
-        res.status(500).json({ error: "Details fetch failed" });
+    } catch (e) { console.log("Method 1 failed"); }
+
+    // ක්‍රමය 2: TikTok සඳහා (TikWM)
+    if (cleanUrl.includes("tiktok.com")) {
+        try {
+            const res2 = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(cleanUrl)}`);
+            if (res2.data.data) return res.redirect(res2.data.data.play);
+        } catch (e) { console.log("Method 2 failed"); }
     }
+
+    // ක්‍රමය 3: YouTube/All සඳහා (SaveFrom Bypass)
+    try {
+        const res3 = await axios.post('https://save-from.net/api/convert', { url: cleanUrl });
+        if (res3.data && res3.data.url[0].url) {
+            return res.redirect(res3.data.url[0].url);
+        }
+    } catch (e) { console.log("Method 3 failed"); }
+
+    res.status(500).json({ error: "සියලුම ක්‍රම අසාර්ථක විය. ලින්ක් එකේ ගැටලුවකි." });
 });
 
-// Main Download API
-app.get("/api/download", async (req, res) => {
-    let { url, quality } = req.query;
-    if (!url) return res.status(400).json({ error: "URL missing" });
-
-    try {
-        const cleanUrl = url.split('?')[0];
-
-        // 1. TikTok Logic
-        if (cleanUrl.includes("tiktok.com")) {
-            const r = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(cleanUrl)}`);
-            const d = r.data.data;
-            if (d) return res.redirect(quality === "audio" ? d.music : (d.hdplay || d.play));
-        }
-
-        // 2. Multi-Platform Logic (FB, YT, IG) - Using Cobalt
-        const cobaltRes = await axios.post('https://api.cobalt.tools/', {
-            url: cleanUrl,
-            videoQuality: quality || "720",
-            downloadMode: quality === "audio" ? "audio" : "video",
-            youtubeVideoCodec: "h264"
-        }, {
-            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-            timeout: 20000 
-        });
-
-        if (cobaltRes.data && cobaltRes.data.url) {
-            return res.redirect(cobaltRes.data.url);
-        }
-
-        throw new Error("API could not generate link");
-
-    } catch (e) {
-        console.error("DL Error:", e.message);
-        res.status(500).json({ 
-            error: "බාගත කිරීම අසාර්ථකයි.", 
-            details: "සර්වර් එකේ ගැටලුවක් පවතී. පසුව උත්සාහ කරන්න." 
-        });
-    }
+app.get("/api/details", async (req, res) => {
+    res.json({ platform: "Video", title: "Video Ready", thumbnail: "https://files.catbox.moe/1dlcmm.jpg" });
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Premium Engine on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Engine v40 Active`));
