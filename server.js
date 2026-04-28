@@ -1,3 +1,5 @@
+// server.js — SenuzVid Render Optimized Edition
+
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
@@ -6,67 +8,90 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get("/", (req, res) => res.send("SenuzVid Ultimate Engine v50 - Active 🚀"));
+// සර්වර් එක වැඩද බලන්න
+app.get("/", (req, res) => {
+    res.status(200).send("SenuzVid Engine is Live on Render! 🚀");
+});
 
-// Video Details API - Thumbnail එක සහ Title එක හරියටම ගන්න
+/* ================= DOWNLOAD LOGIC ================= */
+app.get("/api/download", async (req, res) => {
+    const { url, quality } = req.query;
+    
+    if (!url) return res.status(400).json({ error: "කරුණාකර URL එකක් ලබා දෙන්න." });
+
+    try {
+        // 1. TikTok Logic (TikWM API එක ඉතා ස්ථාවරයි)
+        if (url.includes("tiktok.com") || url.includes("vm.tiktok")) {
+            const response = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
+            const data = response.data.data;
+            if (!data) throw new Error("TikTok data not found");
+            
+            const dlLink = (quality === "audio") ? data.music : (data.hdplay || data.play);
+            return res.redirect(dlLink);
+        }
+
+        // 2. YouTube, FB, IG, Twitter (Cobalt Engine)
+        // Render වලදී 'api.cobalt.tools' සමහරවිට busy වෙන්න පුළුවන්, 
+        // ඒ නිසා මේ headers අනිවාර්යයි.
+        const cobaltResponse = await axios.post('https://api.cobalt.tools/api/json', {
+            url: url,
+            videoQuality: quality === "audio" ? "720" : quality, 
+            downloadMode: quality === "audio" ? "audio" : "video",
+            filenameStyle: "pretty"
+        }, {
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
+            }
+        });
+
+        if (cobaltResponse.data && cobaltResponse.data.url) {
+            return res.redirect(cobaltResponse.data.url);
+        } else {
+            throw new Error("Engine process failed");
+        }
+
+    } catch (e) {
+        console.error("Error Detail:", e.message);
+        res.status(500).json({ 
+            error: "සර්වර් එකේ බාධාවක්.", 
+            msg: "සමහරවිට මෙම වීඩියෝව ලබා ගැනීමට Engine එකට අවසර නැත. නැවත උත්සාහ කරන්න." 
+        });
+    }
+});
+
+/* ================= DETAILS API ================= */
 app.get("/api/details", async (req, res) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: "URL missing" });
 
     try {
-        // TikTok සඳහා විශේෂිතව
         if (url.includes("tiktok.com")) {
             const r = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
-            if (r.data.data) {
-                return res.json({
-                    title: r.data.data.title || "TikTok Video",
-                    thumbnail: r.data.data.cover
-                });
-            }
+            const d = r.data.data;
+            return res.json({
+                platform: "TikTok",
+                title: d.title || "TikTok Video",
+                thumbnail: d.cover,
+                qualities: ["1080", "720", "audio"]
+            });
         }
-        
-        // FB, YT සහ අනෙකුත් ඒවට පොදු Thumbnail එකක් (Loading එක පෙන්වන්න)
-        res.json({
-            title: "Video Found - Processing...",
-            thumbnail: "https://files.catbox.moe/1dlcmm.jpg"
+
+        // Generic details for YT/FB
+        return res.json({
+            platform: "Social Media",
+            title: "Ready to Download",
+            thumbnail: "https://files.catbox.moe/1dlcmm.jpg",
+            qualities: ["1080", "720", "480", "audio"]
         });
     } catch (e) {
-        res.json({ title: "Video Found", thumbnail: "https://files.catbox.moe/1dlcmm.jpg" });
+        res.status(500).json({ error: "Details fetch failed" });
     }
 });
 
-// Download API - FB, YT, TikTok සියල්ලටම
-app.get("/api/download", async (req, res) => {
-    const { url, quality } = req.query;
-    if (!url) return res.status(400).send("URL missing");
-
-    try {
-        const cleanUrl = url.split('?')[0];
-
-        // ක්‍රමය 1: FB/Youtube (AIO API)
-        const res1 = await axios.get(`https://api.vkrdown.com/server/wrapper.php?url=${encodeURIComponent(cleanUrl)}`);
-        
-        if (res1.data && res1.data.data) {
-            const d = res1.data.data;
-            // HD තියෙනවා නම් ඒක ගන්න, නැත්නම් SD
-            const dlLink = quality === "audio" ? d.audio : (d.hd || d.url || d.mp4);
-            if (dlLink) return res.redirect(dlLink);
-        }
-
-        // ක්‍රමය 2: TikTok (TikWM)
-        if (cleanUrl.includes("tiktok.com")) {
-            const res2 = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(cleanUrl)}`);
-            if (res2.data.data) {
-                return res.redirect(quality === "audio" ? res2.data.data.music : res2.data.data.play);
-            }
-        }
-
-        throw new Error("All methods failed");
-    } catch (e) {
-        console.log("Download Error:", e.message);
-        res.status(500).send("සර්වර් එක සමඟ සම්බන්ධ විය නොහැක. පසුව උත්සාහ කරන්න.");
-    }
-});
-
+// Render වලට ගැලපෙන Port එක
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Engine v50 on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Engine running at port ${PORT}`);
+});
