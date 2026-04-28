@@ -6,45 +6,67 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get("/", (req, res) => res.send("SenuzVid Bypass Engine v40 🚀"));
+app.get("/", (req, res) => res.send("SenuzVid Ultimate Engine v50 - Active 🚀"));
 
+// Video Details API - Thumbnail එක සහ Title එක හරියටම ගන්න
+app.get("/api/details", async (req, res) => {
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ error: "URL missing" });
+
+    try {
+        // TikTok සඳහා විශේෂිතව
+        if (url.includes("tiktok.com")) {
+            const r = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
+            if (r.data.data) {
+                return res.json({
+                    title: r.data.data.title || "TikTok Video",
+                    thumbnail: r.data.data.cover
+                });
+            }
+        }
+        
+        // FB, YT සහ අනෙකුත් ඒවට පොදු Thumbnail එකක් (Loading එක පෙන්වන්න)
+        res.json({
+            title: "Video Found - Processing...",
+            thumbnail: "https://files.catbox.moe/1dlcmm.jpg"
+        });
+    } catch (e) {
+        res.json({ title: "Video Found", thumbnail: "https://files.catbox.moe/1dlcmm.jpg" });
+    }
+});
+
+// Download API - FB, YT, TikTok සියල්ලටම
 app.get("/api/download", async (req, res) => {
     const { url, quality } = req.query;
     if (!url) return res.status(400).send("URL missing");
 
-    const cleanUrl = url.split('?')[0];
-
-    // ක්‍රමය 1: FB/Instagram සඳහා (SnapSave API - Very Strong)
     try {
-        const res1 = await axios.get(`https://api.vkrdown.com/server/fb.php?url=${encodeURIComponent(cleanUrl)}`);
+        const cleanUrl = url.split('?')[0];
+
+        // ක්‍රමය 1: FB/Youtube (AIO API)
+        const res1 = await axios.get(`https://api.vkrdown.com/server/wrapper.php?url=${encodeURIComponent(cleanUrl)}`);
+        
         if (res1.data && res1.data.data) {
-            const link = quality === "audio" ? res1.data.data.audio : (res1.data.data.hd || res1.data.data.sd);
-            if (link) return res.redirect(link);
+            const d = res1.data.data;
+            // HD තියෙනවා නම් ඒක ගන්න, නැත්නම් SD
+            const dlLink = quality === "audio" ? d.audio : (d.hd || d.url || d.mp4);
+            if (dlLink) return res.redirect(dlLink);
         }
-    } catch (e) { console.log("Method 1 failed"); }
 
-    // ක්‍රමය 2: TikTok සඳහා (TikWM)
-    if (cleanUrl.includes("tiktok.com")) {
-        try {
+        // ක්‍රමය 2: TikTok (TikWM)
+        if (cleanUrl.includes("tiktok.com")) {
             const res2 = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(cleanUrl)}`);
-            if (res2.data.data) return res.redirect(res2.data.data.play);
-        } catch (e) { console.log("Method 2 failed"); }
-    }
-
-    // ක්‍රමය 3: YouTube/All සඳහා (SaveFrom Bypass)
-    try {
-        const res3 = await axios.post('https://save-from.net/api/convert', { url: cleanUrl });
-        if (res3.data && res3.data.url[0].url) {
-            return res.redirect(res3.data.url[0].url);
+            if (res2.data.data) {
+                return res.redirect(quality === "audio" ? res2.data.data.music : res2.data.data.play);
+            }
         }
-    } catch (e) { console.log("Method 3 failed"); }
 
-    res.status(500).json({ error: "සියලුම ක්‍රම අසාර්ථක විය. ලින්ක් එකේ ගැටලුවකි." });
-});
-
-app.get("/api/details", async (req, res) => {
-    res.json({ platform: "Video", title: "Video Ready", thumbnail: "https://files.catbox.moe/1dlcmm.jpg" });
+        throw new Error("All methods failed");
+    } catch (e) {
+        console.log("Download Error:", e.message);
+        res.status(500).send("සර්වර් එක සමඟ සම්බන්ධ විය නොහැක. පසුව උත්සාහ කරන්න.");
+    }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Engine v40 Active`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Engine v50 on port ${PORT}`));
