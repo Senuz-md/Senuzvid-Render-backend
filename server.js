@@ -1,5 +1,3 @@
-// server.js — SenuzVid Render Optimized Edition
-
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
@@ -8,90 +6,68 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// සර්වර් එක වැඩද බලන්න
-app.get("/", (req, res) => {
-    res.status(200).send("SenuzVid Engine is Live on Render! 🚀");
-});
+app.get("/", (req, res) => res.send("SenuzVid Pro Engine is Online! 🚀"));
 
-/* ================= DOWNLOAD LOGIC ================= */
-app.get("/api/download", async (req, res) => {
-    const { url, quality } = req.query;
-    
-    if (!url) return res.status(400).json({ error: "කරුණාකර URL එකක් ලබා දෙන්න." });
-
-    try {
-        // 1. TikTok Logic (TikWM API එක ඉතා ස්ථාවරයි)
-        if (url.includes("tiktok.com") || url.includes("vm.tiktok")) {
-            const response = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
-            const data = response.data.data;
-            if (!data) throw new Error("TikTok data not found");
-            
-            const dlLink = (quality === "audio") ? data.music : (data.hdplay || data.play);
-            return res.redirect(dlLink);
-        }
-
-        // 2. YouTube, FB, IG, Twitter (Cobalt Engine)
-        // Render වලදී 'api.cobalt.tools' සමහරවිට busy වෙන්න පුළුවන්, 
-        // ඒ නිසා මේ headers අනිවාර්යයි.
-        const cobaltResponse = await axios.post('https://api.cobalt.tools/api/json', {
-            url: url,
-            videoQuality: quality === "audio" ? "720" : quality, 
-            downloadMode: quality === "audio" ? "audio" : "video",
-            filenameStyle: "pretty"
-        }, {
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
-            }
-        });
-
-        if (cobaltResponse.data && cobaltResponse.data.url) {
-            return res.redirect(cobaltResponse.data.url);
-        } else {
-            throw new Error("Engine process failed");
-        }
-
-    } catch (e) {
-        console.error("Error Detail:", e.message);
-        res.status(500).json({ 
-            error: "සර්වර් එකේ බාධාවක්.", 
-            msg: "සමහරවිට මෙම වීඩියෝව ලබා ගැනීමට Engine එකට අවසර නැත. නැවත උත්සාහ කරන්න." 
-        });
-    }
-});
-
-/* ================= DETAILS API ================= */
+// Details API
 app.get("/api/details", async (req, res) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: "URL missing" });
-
     try {
         if (url.includes("tiktok.com")) {
             const r = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
-            const d = r.data.data;
-            return res.json({
-                platform: "TikTok",
-                title: d.title || "TikTok Video",
-                thumbnail: d.cover,
-                qualities: ["1080", "720", "audio"]
-            });
+            if (r.data.data) return res.json({ title: r.data.data.title, thumbnail: r.data.data.cover });
         }
-
-        // Generic details for YT/FB
-        return res.json({
-            platform: "Social Media",
-            title: "Ready to Download",
-            thumbnail: "https://files.catbox.moe/1dlcmm.jpg",
-            qualities: ["1080", "720", "480", "audio"]
-        });
+        res.json({ title: "Video Found", thumbnail: "https://files.catbox.moe/1dlcmm.jpg" });
     } catch (e) {
-        res.status(500).json({ error: "Details fetch failed" });
+        res.json({ title: "Video Ready", thumbnail: "https://files.catbox.moe/1dlcmm.jpg" });
     }
 });
 
-// Render වලට ගැලපෙන Port එක
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Engine running at port ${PORT}`);
+// Download API (Using Dark-Shan API)
+app.get("/api/download", async (req, res) => {
+    const { url, quality } = req.query;
+    if (!url) return res.status(400).send("URL missing");
+
+    try {
+        // 1. TikTok (TikWM) - මේක TikTok වලට හොඳම නිසා තියන්නම්
+        if (url.includes("tiktok.com")) {
+            const tk = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
+            if (tk.data.data) return res.redirect(quality === "audio" ? tk.data.data.music : tk.data.data.play);
+        }
+
+        // 2. Facebook (Dark-Shan API)
+        if (url.includes("facebook.com") || url.includes("fb.watch")) {
+            const fbRes = await axios.get(`https://api-dark-shan-yt.koyeb.app/download/facebook?url=${encodeURIComponent(url)}`);
+            if (fbRes.data && fbRes.data.status) {
+                const link = (quality === "audio") ? fbRes.data.result.audio : (fbRes.data.result.hd || fbRes.data.result.sd);
+                if (link) return res.redirect(link);
+            }
+        }
+
+        // 3. YouTube (Dark-Shan API)
+        if (url.includes("youtube.com") || url.includes("youtu.be")) {
+            const ytRes = await axios.get(`https://api-dark-shan-yt.koyeb.app/download/ytdl?url=${encodeURIComponent(url)}`);
+            if (ytRes.data && ytRes.data.status) {
+                const link = (quality === "audio") ? ytRes.data.result.mp3 : ytRes.data.result.mp4;
+                if (link) return res.redirect(link);
+            }
+        }
+
+        // 4. Backup - අනිත් හැම එකකටම (Instagram etc.)
+        const backup = await axios.post('https://api.cobalt.tools/api/json', {
+            url: url,
+            videoQuality: "720",
+        }, { headers: { 'Accept': 'application/json' }});
+        
+        if (backup.data && backup.data.url) return res.redirect(backup.data.url);
+
+        res.status(404).send("වීඩියෝව සොයාගත නොහැක. කරුණාකර නැවත උත්සාහ කරන්න.");
+
+    } catch (e) {
+        console.error("API Error:", e.message);
+        res.status(500).send("සර්වර් එකේ දෝෂයකි. කරුණාකර පසුව උත්සාහ කරන්න.");
+    }
 });
+
+const PORT = 3070;
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Engine Running on Port ${PORT}`));
